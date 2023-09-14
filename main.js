@@ -1,4 +1,6 @@
+const {readFileSync, existsSync} = require("fs");
 const Module = require("module");
+const path = require("path");
 
 const originalLoad = Module._load;
 
@@ -28,4 +30,27 @@ Module._load = function (mod, parent) {
     return originalLoad.apply(this, arguments);
 }
 
+const original = Module._extensions[".js"];
+
+Module._extensions[".js"] = function (mod, filename) {
+    if (mod.id?.includes?.("betterdiscord.asar") && mod.id.endsWith("injector.js")) {
+        let content = readFileSync(filename, "utf8");
+        if (existsSync(path.resolve(__dirname, "..", "vencord-loader"))) {
+            content = content.replace(`"appSettings"`, "appSettingsUndefined");
+        }
+        
+        content = content.replace("static patchBrowserWindow(){", "static patchBrowserWindow(){return;");
+        content = content.replace("Z:()=>BetterDiscord", "Z:()=>(global.BetterDiscordInstance = BetterDiscord)");
+
+        return mod._compile(content, filename);
+    }
+
+    return original.apply(this, arguments);
+}
+
+require("electron").app.on("browser-window-created", (_, win) => {
+    BetterDiscordInstance?.setup(win);
+});
+
 queueMicrotask(() => require("./betterdiscord.asar"));
+
